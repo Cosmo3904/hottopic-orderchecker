@@ -16,6 +16,23 @@ def orderchecker(ordernum, email):
     }
     res = s.post(posturl, data = payload)
     temp = res.text[res.text.find('OrderStatusStep'):].replace('OrderStatusStep', '')[0]
+    with open('test.html', 'w') as openfile:
+        openfile.write(res.text)
+    soup = bs(res.text, 'lxml')
+    pidquan = ''
+    for item in soup.find('td', {'class' : 'order-status-table-items'}).find_all('div'):
+        try:
+            pidquan += str(item.text)
+        except:
+            pass
+    tempPIDQUAN = ''
+    for item in pidquan.split('\n'):
+        if str(len(item)) == "8":
+            tempPIDQUAN += item + ':'
+    for item in pidquan.split('\n'):
+        if '$' in item:
+            tempPIDQUAN += str(item[:item.find('$')]).replace('.0', '')
+    pidquan = tempPIDQUAN
     if '1' in temp:
         orderstatus = 'Order Placed'
         trackingnum = 'N/A'
@@ -24,13 +41,19 @@ def orderchecker(ordernum, email):
         trackingnum = 'N/A'
     elif '3' in temp:
         orderstatus = 'Shipped'
-        for item in soup.find_all('span', {'class':'order-deliveries-date'}):
-            if 'Tracking number' in item.text:
-                trackingnum = item.text.replace('Tracking number: ', '')
+        for item in soup.find_all('a'):
+            try:
+                if 'http://wwwapps.ups.com/WebTracking/track' in str(item):
+                    trackingnum = item.text
+                    trackingnum = trackingnum[trackingnum.find('1ZA'):]
+                    while '\n' in trackingnum:
+                        trackingnum=trackingnum[:trackingnum.find('\n')]
+            except:
+                pass
     else:
         orderstatus = 'Canceled'
         trackingnum = 'N/A'
-    return({'Status' : orderstatus, 'Tracking' : trackingnum})
+    return({'Status' : orderstatus, 'Tracking' : trackingnum, 'PID' : pidquan})
 
 def jsonripper():
     try:
@@ -63,6 +86,6 @@ def jsonripper():
         print('Orders Saved for Next Check!')
     for item in data['Orders']:
         status = orderchecker(item['Order Number'], item['Email'])
-        print('[{}] [Tracking : {}]'.format(status['Status'], status['Tracking']))
+        print('[{}] [{}] [Tracking : {}] [{}]'.format(item['Order Number'], status['Status'], status['Tracking'], status['PID']))
 
 jsonripper()
